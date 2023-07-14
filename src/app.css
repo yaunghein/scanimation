@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --pixel: 1px;
+  --cover: black;
+}
+
+.cover {
+  background: linear-gradient(
+    to right,
+    transparent 0px,
+    transparent var(--pixel),
+    /* 1px */ var(--cover) var(--pixel),
+    var(--cover) calc(var(--pixel) * 8)
+  ); /* 5px = 1 + 4 */
+  background-size: calc(var(--pixel) * 8) 100%; /* repeat horizontally */
+  animation: 10s linear move infinite;
+}
+
+@keyframes move {
+  0% {
+    transform: translateX(-5%);
+  }
+  50% {
+    transform: translateX(5%);
+  }
+  100% {
+    transform: translateX(-5%);
+  }
+}
