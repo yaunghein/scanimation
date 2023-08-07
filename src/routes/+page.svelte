@@ -1,8 +1,13 @@
 <script>
 import { onMount } from 'svelte';
+
+import convertFilesToBase64 from '$lib/utils/convertFilesToBase64';
+import transformToImageObjects from '$lib/utils/transformToImageObjects';
+import drawBars from '$lib/utils/drawBars';
+import downloadImages from '$lib/utils/downloadImages';
+
 import { gsap } from 'gsap';
 import { Draggable } from 'gsap/dist/Draggable';
-import JSZip from 'jszip';
 
 onMount(() => {
   gsap.registerPlugin(Draggable);
@@ -10,138 +15,118 @@ onMount(() => {
 
 let px = 1;
 let images = [];
-let realImages = [];
 let name = '';
+let duration = 10;
+let autoPlay = false;
 
-const displayWidth = 720;
+const DISPLAY_WIDTH = 720;
 
-const setDisplayDimention = (canvas, naturalWidth, naturalHeight) => {
+const setDisplayDimention = (canvas, naturalWidth, naturalHeight, isBars) => {
   if (naturalWidth > 500) {
-    canvas.width = displayWidth;
-    canvas.height = displayWidth * (naturalHeight / naturalWidth);
+    if (isBars) {
+      canvas.width = 2 * DISPLAY_WIDTH;
+      canvas.height = DISPLAY_WIDTH * (naturalHeight / naturalWidth);
+    } else {
+      canvas.width = DISPLAY_WIDTH;
+      canvas.height = DISPLAY_WIDTH * (naturalHeight / naturalWidth);
+    }
   } else {
-    canvas.width = naturalWidth;
+    canvas.width = isBars ? naturalWidth * 2 : naturalWidth;
     canvas.height = naturalHeight;
   }
 };
 
-const convertToBase64 = async (files) => {
-  const filePromises = Array.from(files).map((file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-
-      reader.readAsDataURL(file);
-    });
-  });
-
-  const results = await Promise.all(filePromises);
-  return results;
-};
-
-const transformToActualImages = (base64Images) => {
-  return new Promise((resolve, reject) => {
-    try {
-      const images = [];
-      for (const image of base64Images) {
-        const actualImage = document.createElement('img');
-        actualImage.src = image;
-        images.push(actualImage);
-      }
-      resolve(images);
-    } catch (error) {
-      reject(error);
-    }
-  });
-};
-
-const drawBars = () => {
+const generateBaseAndBars = (px) => {
+  const base = document.getElementById('base');
   const bars = document.getElementById('bars');
-  const imagesCount = images.length;
-  const barsCount = Math.ceil(bars.width / imagesCount);
 
-  const ctx = bars.getContext('2d');
-  for (const i of [...Array(barsCount).keys()]) {
-    ctx.fillStyle = '#000';
-    ctx.fillRect(i * imagesCount, 0, imagesCount - px, realImages[0].naturalHeight);
+  const imgW = images[0].naturalWidth;
+  const imgH = images[0].naturalHeight;
+
+  base.width = imgW;
+  base.height = imgH;
+
+  bars.width = imgW * 2;
+  bars.height = imgH;
+
+  const ctx = base.getContext('2d');
+
+  const sliceSequence = [...Array(1000).keys()].map((i) => i * px * images.length);
+  for (const [index, image] of images.entries()) {
+    for (const i of sliceSequence) {
+      ctx.drawImage(image, i + px * index, 0, px, imgH, i + px * index, 0, px, imgH);
+    }
   }
+
+  drawBars(bars, images, px);
+
+  const displayContainer = document.getElementById('display-base');
+  const displayBase = document.getElementById('display-base');
+  const displayBars = document.getElementById('display-bars');
+
+  setDisplayDimention(displayContainer, imgW, imgH, false);
+  setDisplayDimention(displayBase, imgW, imgH, false);
+  setDisplayDimention(displayBars, imgW, imgH, true);
+
+  const displayBaseCtx = displayBase.getContext('2d');
+  const displayBarsCtx = displayBars.getContext('2d');
+
+  displayBaseCtx.drawImage(base, 0, 0, base.width, base.height, 0, 0, displayBase.width, displayBase.height);
+  displayBarsCtx.drawImage(bars, 0, 0, bars.width, bars.height, 0, 0, displayBars.width, displayBars.height);
 };
 
-const generateBaseImage = async (node) => {
+$: if (duration && images.length > 0) {
+  autoPlay = false;
+  setTimeout(() => {
+    autoPlay = true;
+  }, 1000);
+}
+
+let move;
+let drag;
+$: if (images.length > 0) {
+  console.log({ autoPlay });
+  generateBaseAndBars(px);
+  if (autoPlay) {
+    drag[0]?.disable();
+    move = gsap.fromTo(
+      '#display-bars',
+      { x: '0%' },
+      {
+        x: '50%',
+        duration: duration * 3,
+        ease: 'linear',
+        repeat: -1,
+      }
+    );
+    console.log('reach play');
+  } else {
+    move && move.kill();
+    move && (move = undefined);
+    drag = Draggable.create('#display-bars', { type: 'x,y', edgeResistance: 0, bounds: '.display-inner-container' });
+  }
+}
+
+const handleFilesChange = async (node) => {
   node.addEventListener('change', async () => {
     const { files } = node;
     if (files.length === 0) return;
 
-    const base64Images = await convertToBase64(files);
-    images = base64Images;
-
-    const imagesX = await transformToActualImages(images);
-    realImages = imagesX;
-
-    const base = document.getElementById('base');
-    const bars = document.getElementById('bars');
-
-    const imgW = imagesX[0].naturalWidth;
-    const imgH = imagesX[0].naturalHeight;
-
-    base.width = imgW;
-    base.height = imgH;
-
-    bars.width = imgW;
-    bars.height = imgH;
-
-    const ctx = base.getContext('2d');
-
-    const sliceSequence = [...Array(1000).keys()].map((i) => i * px * imagesX.length);
-    for (const [index, image] of imagesX.entries()) {
-      for (const i of sliceSequence) {
-        ctx.drawImage(image, i + px * index, 0, px, imgH, i + px * index, 0, px, imgH);
-      }
-    }
-
-    drawBars();
-
-    const displayContainer = document.getElementById('display-base');
-    const displayBase = document.getElementById('display-base');
-    const displayBars = document.getElementById('display-bars');
-
-    setDisplayDimention(displayContainer, imgW, imgH);
-    setDisplayDimention(displayBase, imgW, imgH);
-    setDisplayDimention(displayBars, imgW, imgH);
-
-    const displayBaseCtx = displayBase.getContext('2d');
-    const displayBarsCtx = displayBars.getContext('2d');
-
-    displayBaseCtx.drawImage(base, 0, 0, base.width, base.height, 0, 0, displayBase.width, displayBase.height);
-    displayBarsCtx.drawImage(bars, 0, 0, bars.width, bars.height, 0, 0, displayBars.width, displayBars.height);
-
-    Draggable.create('#display-bars', { type: 'x,y', edgeResistance: 0, bounds: '#display-container' });
+    const base64Images = await convertFilesToBase64(files);
+    const imagesObjects = await transformToImageObjects(base64Images);
+    images = imagesObjects;
   });
 };
 
-const downloadImage = (node) => {
+const handleDownload = (node) => {
   node.addEventListener('click', () => {
     if (name === '') {
       alert('Please enter your scanimation name.');
       return;
     }
-
-    const zip = new JSZip();
     const base = document.getElementById('base');
     const bars = document.getElementById('bars');
-
-    for (const canvas of [base, bars]) {
-      zip.file(`${canvas.dataset.name}.png`, canvas.toDataURL('image/png').split('base64,')[1], { base64: true });
-    }
-
-    zip.generateAsync({ type: 'blob' }).then((content) => {
-      const downloadLink = document.createElement('a');
-      downloadLink.href = URL.createObjectURL(content);
-      downloadLink.download = `${name}-scanimation.zip`;
-      downloadLink.click();
-    });
+    downloadImages(name, [base, bars]);
   });
 };
 </script>
@@ -151,18 +136,21 @@ const downloadImage = (node) => {
     for="select-files"
     class="bg-sky-600 w-[200px] h-10 text-white rounded-full cursor-pointer grid place-items-center"
   >
-    <input use:generateBaseImage type="file" multiple id="select-files" class="hidden" />
+    <input use:handleFilesChange type="file" multiple id="select-files" class="hidden" />
     <span>Select Frames</span>
   </label>
 
+  <!-- <div> -->
   <div class="hidden">
     <canvas data-name="base" id="base" />
     <canvas data-name="bars" id="bars" />
   </div>
 
-  <div id="display-container" class="relative w-full h-full mt-10 flex items-center justify-center">
-    <canvas data-name="base" id="display-base" />
-    <canvas data-name="bars" id="display-bars" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+  <div id="display-container" class="w-full h-full mt-10 flex items-center justify-center">
+    <div class="  display-inner-container relative overflow-hidden">
+      <canvas data-name="base" id="display-base" />
+      <canvas data-name="bars" id="display-bars" class="absolute top-0 right-0" />
+    </div>
   </div>
 
   {#if images.length > 0}
@@ -174,11 +162,34 @@ const downloadImage = (node) => {
         class="border border-sky-600 h-10 flex items-center outline-none rounded-full px-3 w-[12rem]"
       />
       <button
-        use:downloadImage
-        class="appearance-none bg-sky-600 w-[120px] h-10 text-white rounded-full cursor-pointer"
+        use:handleDownload
+        class="appearance-none bg-sky-600 w-[120px] h-10 text-white rounded-full cursor-pointer mr-10"
       >
         Donwload
       </button>
+      <label for="bar-width" class="flex items-center gap-2">
+        Bar Width
+        <input
+          id="bar-width"
+          type="number"
+          bind:value={px}
+          class="border border-sky-600 h-10 flex items-center outline-none rounded-full px-3 w-[6rem]"
+        />
+      </label>
+      <button
+        on:click={() => (autoPlay = !autoPlay)}
+        class="bg-sky-600 mx-10 h-10 w-[10rem] rounded-full text-white grid place-items-center"
+        >Auto Play: {autoPlay ? 'Off' : 'On'}</button
+      >
+      <label for="duration" class="flex items-center gap-2">
+        Duration
+        <input
+          id="duration"
+          type="number"
+          bind:value={duration}
+          class="border border-sky-600 h-10 flex items-center outline-none rounded-full px-3 w-[6rem]"
+        />
+      </label>
     </div>
   {/if}
 </div>

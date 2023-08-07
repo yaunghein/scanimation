@@ -1,4 +1,4 @@
-export default async function convertToBase64(files) {
+export default async function (files) {
   const filePromises = Array.from(files).map((file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
