@@ -85,7 +85,6 @@ $: if (duration && images.length > 0) {
 let move;
 let drag;
 $: if (images.length > 0) {
-  console.log({ autoPlay });
   generateBaseAndBars(px);
   if (autoPlay) {
     drag[0]?.disable();
@@ -99,11 +98,14 @@ $: if (images.length > 0) {
         repeat: -1,
       }
     );
-    console.log('reach play');
   } else {
     move && move.kill();
     move && (move = undefined);
-    drag = Draggable.create('#display-bars', { type: 'x,y', edgeResistance: 0, bounds: '.display-inner-container' });
+    if (drag) {
+      drag[0].enable();
+    } else {
+      drag = Draggable.create('#display-bars', { type: 'x,y', edgeResistance: 0, bounds: '.display-inner-container' });
+    }
   }
 }
 
