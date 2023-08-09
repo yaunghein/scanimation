@@ -16,8 +16,6 @@ onMount(() => {
 let px = 1;
 let images = [];
 let name = '';
-let duration = 10;
-let autoPlay = false;
 
 const DISPLAY_WIDTH = 720;
 
@@ -75,32 +73,42 @@ const generateBaseAndBars = (px) => {
   displayBarsCtx.drawImage(bars, 0, 0, bars.width, bars.height, 0, 0, displayBars.width, displayBars.height);
 };
 
-$: if (duration && images.length > 0) {
+let autoPlay = false;
+let duration = 1;
+let drag;
+let movingId;
+let movingPixels = 0;
+
+$: if (px) {
   autoPlay = false;
-  setTimeout(() => {
-    autoPlay = true;
-  }, 1000);
 }
 
-let move;
-let drag;
+const animateMove = () => {
+  const bars = document.getElementById('display-bars');
+  const move = () => {
+    if (movingPixels < 100) {
+      movingPixels += 0.001 * duration;
+    } else {
+      movingPixels = 0;
+    }
+    bars.style.transform = `translateX(${movingPixels}px)`;
+    movingId = requestAnimationFrame(move);
+  };
+  move();
+};
+
+const cancleMoveAnimation = () => {
+  cancelAnimationFrame(movingId);
+};
+
 $: if (images.length > 0) {
   generateBaseAndBars(px);
+
   if (autoPlay) {
     drag[0]?.disable();
-    move = gsap.fromTo(
-      '#display-bars',
-      { x: '0%' },
-      {
-        x: '50%',
-        duration: duration * 3,
-        ease: 'linear',
-        repeat: -1,
-      }
-    );
+    animateMove();
   } else {
-    move && move.kill();
-    move && (move = undefined);
+    cancleMoveAnimation();
     if (drag) {
       drag[0].enable();
     } else {
@@ -149,7 +157,7 @@ const handleDownload = (node) => {
   </div>
 
   <div id="display-container" class="w-full h-full mt-10 flex items-center justify-center">
-    <div class="  display-inner-container relative overflow-hidden">
+    <div class="display-inner-container relative overflow-hidden">
       <canvas data-name="base" id="display-base" />
       <canvas data-name="bars" id="display-bars" class="absolute top-0 right-0" />
     </div>
@@ -178,11 +186,10 @@ const handleDownload = (node) => {
           class="border border-sky-600 h-10 flex items-center outline-none rounded-full px-3 w-[6rem]"
         />
       </label>
-      <button
-        on:click={() => (autoPlay = !autoPlay)}
-        class="bg-sky-600 mx-10 h-10 w-[10rem] rounded-full text-white grid place-items-center"
-        >Auto Play: {autoPlay ? 'Off' : 'On'}</button
-      >
+      <label for="Auto Play">
+        Auto Play
+        <input type="checkbox" bind:checked={autoPlay} />
+      </label>
       <label for="duration" class="flex items-center gap-2">
         Duration
         <input
