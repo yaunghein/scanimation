@@ -1,13 +1,15 @@
 <script>
 import { onMount } from 'svelte';
 
+import { gsap } from 'gsap';
+import { Draggable } from 'gsap/dist/Draggable';
+
+import Switch from './components/Switch.svelte';
+
 import convertFilesToBase64 from '$lib/utils/convertFilesToBase64';
 import transformToImageObjects from '$lib/utils/transformToImageObjects';
 import drawBars from '$lib/utils/drawBars';
 import downloadImages from '$lib/utils/downloadImages';
-
-import { gsap } from 'gsap';
-import { Draggable } from 'gsap/dist/Draggable';
 
 onMount(() => {
   gsap.registerPlugin(Draggable);
@@ -73,8 +75,9 @@ const generateBaseAndBars = (px) => {
   displayBarsCtx.drawImage(bars, 0, 0, bars.width, bars.height, 0, 0, displayBars.width, displayBars.height);
 };
 
-let autoPlay = false;
-let duration = 1;
+let autoPlay = true;
+let speed = 20;
+let speedPreset;
 let drag;
 let movingId;
 let movingPixels = 0;
@@ -83,11 +86,18 @@ $: if (px) {
   autoPlay = false;
 }
 
+$: if (speedPreset) {
+  console.log('reach');
+  if (speedPreset === 'slow') speed = 20;
+  if (speedPreset === 'medium') speed = 140;
+  if (speedPreset === 'fast') speed = 200;
+}
+
 const animateMove = () => {
   const bars = document.getElementById('display-bars');
   const move = () => {
     if (movingPixels < 100) {
-      movingPixels += 0.001 * duration;
+      movingPixels += 0.001 * speed;
     } else {
       movingPixels = 0;
     }
@@ -102,6 +112,7 @@ const cancleMoveAnimation = () => {
 };
 
 $: if (images.length > 0) {
+  document.querySelector('#display-container').style.display = 'flex';
   generateBaseAndBars(px);
 
   if (autoPlay) {
@@ -141,64 +152,154 @@ const handleDownload = (node) => {
 };
 </script>
 
-<div class="overflow-hidden min-h-screen w-full p-10 flex flex-col items-center">
-  <label
-    for="select-files"
-    class="bg-sky-600 w-[200px] h-10 text-white rounded-full cursor-pointer grid place-items-center"
-  >
-    <input use:handleFilesChange type="file" multiple id="select-files" class="hidden" />
-    <span>Select Frames</span>
-  </label>
+<div class="overflow-hidden h-screen w-full p-5">
+  <div class="h-full flex gap-5">
+    <!-- Controls -->
+    <div class="h-full w-1/4 flex flex-col">
+      <div class="flex flex-col items-center pb-4 border-b border-gray-300">
+        <img src="/sand-logo.gif" alt="SAND Studio" class="w-14 h-14 overflow-hidden rounded-full" />
+        <h1 class="font-bold text-lg mt-3">SAND Scan</h1>
+        <p class="text-sm text-gray-400">Scanimation by SAND Studio</p>
+      </div>
 
-  <!-- <div> -->
-  <div class="hidden">
-    <canvas data-name="base" id="base" />
-    <canvas data-name="bars" id="bars" />
-  </div>
+      <div class="p-4 border-b border-gray-300">
+        <h2 class="font-medium mb-2">Bar Width</h2>
+        <div class="flex gap-5 items-center justify-between">
+          <input
+            type="range"
+            bind:value={px}
+            min="1"
+            max="50"
+            class="appearance-none bg-transparent cursor-pointer w-[15rem]"
+          />
+          <input
+            type="number"
+            bind:value={px}
+            class="appearance-none px-2 w-[4rem] bg-gray-100 rounded-none border border-gray-200"
+          />
+        </div>
+      </div>
 
-  <div id="display-container" class="w-full h-full mt-10 flex items-center justify-center">
-    <div class="display-inner-container relative overflow-hidden">
-      <canvas data-name="base" id="display-base" />
-      <canvas data-name="bars" id="display-bars" class="absolute top-0 right-0" />
+      <div class="p-4 border-b border-gray-300">
+        <div class="flex items-start justify-between">
+          <div>
+            <h2 class="font-medium">Auto Play?</h2>
+            <p class="text-xs text-gray-400">You can drag while this is off.</p>
+          </div>
+          <Switch bind:checked={autoPlay} />
+        </div>
+
+        <div class="mt-5">
+          <h2 class="font-medium mb-2">Speed</h2>
+          <div class="flex gap-5 items-center justify-between">
+            <input
+              type="range"
+              bind:value={speed}
+              min="1"
+              max="200"
+              class="appearance-none bg-transparent cursor-pointer w-[15rem]"
+              on:change={() => (speedPreset = 'reset')}
+            />
+            <input
+              type="number"
+              bind:value={speed}
+              class="appearance-none px-2 w-[4rem] bg-gray-100 rounded-none border border-gray-200"
+              on:change={() => (speedPreset = 'reset')}
+            />
+          </div>
+
+          <div class="mt-2 flex items-center gap-4 mb-1">
+            <label class="text-xs flex item-center gap-1">
+              <input type="radio" bind:group={speedPreset} name="speed" value="slow" class="accent-black" />
+              Slow
+            </label>
+            <label class="text-xs flex item-center gap-1">
+              <input type="radio" bind:group={speedPreset} name="speed" value="medium" class="accent-black" />
+              Medium
+            </label>
+            <label class="text-xs flex item-center gap-1">
+              <input type="radio" bind:group={speedPreset} name="speed" value="fast" class="accent-black" />
+              Fast
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-auto flex flex-col gap-2">
+        <label for="name">
+          <input
+            type="text"
+            id="name"
+            bind:value={name}
+            placeholder="Enter Scanimation Name"
+            class="appearance-none mt-1 px-2 w-full h-[2.9rem] bg-gray-100 rounded-none border border-gray-200 outline-black"
+            autocomplete="off"
+          />
+        </label>
+
+        <button
+          use:handleDownload
+          class="appearance-none mt-auto bg-black w-full h-12 text-white rounded-none cursor-pointer mr-10 border border-black"
+        >
+          Export
+        </button>
+      </div>
     </div>
-  </div>
 
-  {#if images.length > 0}
-    <div class="flex items-center justify-center gap-2 mt-10">
-      <input
-        bind:value={name}
-        type="text"
-        placeholder="Scanimation Name..."
-        class="border border-sky-600 h-10 flex items-center outline-none rounded-full px-3 w-[12rem]"
-      />
-      <button
-        use:handleDownload
-        class="appearance-none bg-sky-600 w-[120px] h-10 text-white rounded-full cursor-pointer mr-10"
+    <!-- Animation -->
+    <div class="grow bg-gray-50 border border-gray-200 rounded-none flex flex-col items-center justify-center gap-5">
+      <div class="hidden">
+        <canvas data-name="base" id="base" />
+        <canvas data-name="bars" id="bars" />
+      </div>
+
+      <div id="display-container" class="mt-10 hidden items-center justify-center">
+        <div class="display-inner-container relative overflow-hidden">
+          <canvas data-name="base" id="display-base" />
+          <canvas data-name="bars" id="display-bars" class="absolute top-0 right-0" />
+        </div>
+      </div>
+      <label
+        for="select-files"
+        class="bg-transparent w-[200px] h-12 text-black rounded-none cursor-pointer grid place-items-center border border-gray-400 border-dashed"
       >
-        Donwload
-      </button>
-      <label for="bar-width" class="flex items-center gap-2">
-        Bar Width
-        <input
-          id="bar-width"
-          type="number"
-          bind:value={px}
-          class="border border-sky-600 h-10 flex items-center outline-none rounded-full px-3 w-[6rem]"
-        />
-      </label>
-      <label for="Auto Play">
-        Auto Play
-        <input type="checkbox" bind:checked={autoPlay} />
-      </label>
-      <label for="duration" class="flex items-center gap-2">
-        Duration
-        <input
-          id="duration"
-          type="number"
-          bind:value={duration}
-          class="border border-sky-600 h-10 flex items-center outline-none rounded-full px-3 w-[6rem]"
-        />
+        <input use:handleFilesChange type="file" multiple id="select-files" class="hidden" />
+        <span>Select Frames</span>
       </label>
     </div>
-  {/if}
+  </div>
 </div>
+
+<style>
+input[type='range']::-webkit-slider-runnable-track {
+  background: #000;
+  height: 3px;
+  border-radius: none;
+}
+
+input[type='range']::-moz-range-track {
+  background: #000;
+  height: 3px;
+  border-radius: none;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none; /* Override default look */
+  appearance: none;
+  margin-top: -6.5px; /* Centers thumb on the track */
+  background-color: #000;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 100vw;
+}
+
+input[type='range']::-moz-slider-thumb {
+  -webkit-appearance: none; /* Override default look */
+  appearance: none;
+  margin-top: -6.5px; /* Centers thumb on the track */
+  background-color: #000;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 100vw;
+}
+</style>
